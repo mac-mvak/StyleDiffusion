@@ -64,7 +64,7 @@ class StyleRemoval(object):
 
         # ----------- Precompute Latents -----------#
         print("Prepare identity latent")
-        seq_inv = np.linspace(0, 1, self.args.n_inv_step) * self.args.t_0
+        seq_inv = np.linspace(0, 1, self.args.n_inv_step) * self.args.t_0_remove
         seq_inv = [int(s) for s in list(seq_inv)]
         seq_inv_next = [-1] + list(seq_inv[:-1])
 
@@ -133,7 +133,7 @@ class StyleRemoval(object):
 
             img_lat_pairs_dic[mode] = img_lat_pairs
             pairs_path = os.path.join('precomputed/',
-                                          f'{self.config.data.category}_{mode}_t{self.args.t_0}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+                                          f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
             torch.save(img_lat_pairs, pairs_path)
         
         style_lat_pairs = []
@@ -148,7 +148,7 @@ class StyleRemoval(object):
         x0 = torch.from_numpy(style_gray_ds[0])
         tvu.save_image((x0 + 1) * 0.5, os.path.join(self.args.image_folder, f'style_0_orig.png'))
 
-        x = x0.clone()
+        x = x0.clone().to(self.device).unsqueeze(0)
         model.eval()
         time_s = time.time()
         with torch.no_grad():
@@ -190,5 +190,5 @@ class StyleRemoval(object):
         tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
                                                     f'style_1_rec_ninv{self.args.n_inv_step}.png'))
         pairs_path = os.path.join('precomputed/',
-                                          f'{self.config.data.category}_style_t{self.args.t_0}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+                                          f'{self.config.data.category}_style_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
         torch.save(style_lat_pairs, pairs_path)

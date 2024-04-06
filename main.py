@@ -9,6 +9,7 @@ import numpy as np
 
 from diffusionclip import DiffusionCLIP
 from styleremoval import StyleRemoval
+from styletransfer import StyleTransfer
 from configs.paths_config import HYBRID_MODEL_PATHS
 
 def parse_args_and_config():
@@ -38,7 +39,9 @@ def parse_args_and_config():
     parser.add_argument('--target_class_num', type=str, default=None)
 
     # Sampling
-    parser.add_argument('--t_0', type=int, default=601, help='Return step in [0, 1000)')
+    parser.add_argument('--t_0_remove', type=int, default=601, help='Return step in [0, 1000)')
+    parser.add_argument('--t_0_transfer', type=int, default=301, help='Return step in [0, 1000)')
+    parser.add_argument('--k_r', type=int, default=50, help='Return step in [0, 1000)')
     parser.add_argument('--n_inv_step', type=int, default=40, help='# of steps during generative pross for inversion')
     parser.add_argument('--n_train_step', type=int, default=6, help='# of steps during generative pross for train')
     parser.add_argument('--n_test_step', type=int, default=40, help='# of steps during generative pross for test')
@@ -70,7 +73,7 @@ def parse_args_and_config():
     parser.add_argument('--lr_clip_lat_opt', type=float, default=2e-2, help='Initial learning rate for latent optim')
     parser.add_argument('--n_iter', type=int, default=5, help='# of iterations of a generative process with `n_train_img` images')
     parser.add_argument('--scheduler', type=int, default=1, help='Whether to increase the learning rate')
-    parser.add_argument('--sch_gamma', type=float, default=1.3, help='Scheduler gamma')
+    parser.add_argument('--sch_gamma', type=float, default=1.2, help='Scheduler gamma')
 
     args = parser.parse_args()
 
@@ -207,6 +210,9 @@ def main():
 
     w = StyleRemoval(args, config)
     w.remove_style()
+
+    w = StyleTransfer(args, config)
+    w.transfer_style()
 
 
     return 0
