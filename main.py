@@ -34,7 +34,7 @@ def parse_args_and_config():
 
     # Text
     parser.add_argument('--edit_attr', type=str, default='neanderthal', help='Attribute to edit defiend in ./utils/text_dic.py')
-    parser.add_argument('--style_image', type=str, default='a' , help='Source text e.g. Face')
+    parser.add_argument('--style_image', type=str, default='gogh.jpg' , help='Source text e.g. Face')
     parser.add_argument('--trg_txts', type=str, action='append', help='Target text e.g. Angry Face')
     parser.add_argument('--target_class_num', type=str, default=None)
 
@@ -54,7 +54,7 @@ def parse_args_and_config():
     parser.add_argument('--save_train_image', type=int, default=1, help='Wheter to save training results during CLIP fineuning')
     parser.add_argument('--bs_train', type=int, default=1, help='Training batch size during CLIP fineuning')
     parser.add_argument('--bs_test', type=int, default=1, help='Test batch size during CLIP fineuning')
-    parser.add_argument('--n_precomp_img', type=int, default=100, help='# of images to precompute latents')
+    parser.add_argument('--n_precomp_img', type=int, default=50, help='# of images to precompute latents')
     parser.add_argument('--n_train_img', type=int, default=50, help='# of training images')
     parser.add_argument('--n_test_img', type=int, default=10, help='# of test images')
     parser.add_argument('--model_path', type=str, default='pretrained/256x256_diffusion_uncond.pt', help='Test model path')
@@ -84,57 +84,57 @@ def parse_args_and_config():
 
     if args.clip_finetune_eff :
         if args.edit_attr is not None:
-            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.edit_attr}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
+            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.edit_attr}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
         else:
-            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.trg_txts}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
+            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.trg_txts}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
     elif args.clip_latent_optim:
         if args.edit_attr is not None:
-            args.exp = args.exp + f'_LO_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_{args.edit_attr}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_lat_opt}'
+            args.exp = args.exp + f'_LO_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_{args.edit_attr}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_lat_opt}'
         else:
             args.exp = args.exp + f'_LO_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_{args.trg_txts}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_lat_opt}'
     elif args.edit_images_from_dataset:
         if args.model_path:
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth","")}'
+            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth","")}'
         elif args.hybrid_noise:
             hb_str = '_'
             for i, model_name in enumerate(HYBRID_MODEL_PATHS):
                 hb_str = hb_str + model_name.split('_')[1]
                 if i != len(HYBRID_MODEL_PATHS) - 1:
                     hb_str = hb_str + '_'
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
+            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
         else:
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
+            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
 
     elif args.edit_one_image:
         if args.model_path:
-            args.exp = args.exp + f'_E1_t{args.t_0}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_inv_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
+            args.exp = args.exp + f'_E1_t{args.t_0_remove}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_inv_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
         elif args.hybrid_noise:
             hb_str = '_'
             for i, model_name in enumerate(HYBRID_MODEL_PATHS):
                 hb_str = hb_str + model_name.split('_')[1]
                 if i != len(HYBRID_MODEL_PATHS) - 1:
                     hb_str = hb_str + '_'
-            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_train_step}' + hb_str
+            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}' + hb_str
         else:
-            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_train_step}_orig'
+            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_orig'
 
     elif args.unseen2unseen:
         if args.model_path:
-            args.exp = args.exp + f'_U2U_t{args.t_0}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
+            args.exp = args.exp + f'_U2U_t{args.t_0_remove}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
         elif args.hybrid_noise:
             hb_str = '_'
             for i, model_name in enumerate(HYBRID_MODEL_PATHS):
                 hb_str = hb_str + model_name.split('_')[1]
                 if i != len(HYBRID_MODEL_PATHS) - 1:
                     hb_str = hb_str + '_'
-            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
+            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
         else:
-            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
+            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
 
     elif args.recon_exp:
-        args.exp = args.exp + f'_REC_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0}_ninv{args.n_train_step}'
+        args.exp = args.exp + f'_REC_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}'
     elif args.find_best_image:
-        args.exp = args.exp + f'_FOpt_{new_config.data.category}_{args.trg_txts[0]}_t{args.t_0}_ninv{args.n_train_step}'
+        args.exp = args.exp + f'_FOpt_{new_config.data.category}_{args.trg_txts[0]}_t{args.t_0_remove}_ninv{args.n_train_step}'
 
 
     level = getattr(logging, args.verbose.upper(), None)
@@ -211,8 +211,8 @@ def main():
     w = StyleRemoval(args, config)
     w.remove_style()
 
-    w = StyleTransfer(args, config)
-    w.transfer_style()
+    #w = StyleTransfer(args, config)
+    #w.transfer_style()
 
 
     return 0
