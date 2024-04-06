@@ -119,8 +119,8 @@ def i_DDPM(dataset_name = 'AFHQ'):
 from datasets.GENERIC_dataset import GENERIC_dataset
 
 
-ds = GENERIC_dataset('data/celeba_hq/raw_images/train/*/*.jpg')
+ds = GENERIC_dataset('data/celeba_hq/raw_images/val/images/000085.jpg')
 
-img = ds[2]
+img = ds[0]
 
 print(img)

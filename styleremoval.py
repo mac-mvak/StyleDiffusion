@@ -135,3 +135,60 @@ class StyleRemoval(object):
             pairs_path = os.path.join('precomputed/',
                                           f'{self.config.data.category}_{mode}_t{self.args.t_0}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
             torch.save(img_lat_pairs, pairs_path)
+        
+        style_lat_pairs = []
+        style_image_path = self.args.style_image
+        style_color_ds = GENERIC_dataset(style_image_path, color=True)
+        style_gray_ds = GENERIC_dataset(style_image_path)
+        color_img = torch.from_numpy(style_color_ds[0])
+        tvu.save_image((color_img + 1) * 0.5, os.path.join(self.args.image_folder,
+                                                           f'style_color_rec_ninv{self.args.n_inv_step}.png'))
+        style_lat_pairs.append(color_img)
+
+        x0 = torch.from_numpy(style_gray_ds[0])
+        tvu.save_image((x0 + 1) * 0.5, os.path.join(self.args.image_folder, f'style_0_orig.png'))
+
+        x = x0.clone()
+        model.eval()
+        time_s = time.time()
+        with torch.no_grad():
+            with tqdm(total=len(seq_inv), desc=f"Inversion process style") as progress_bar:
+                for it, (i, j) in enumerate(zip((seq_inv_next[1:]), (seq_inv[1:]))):
+                    t = (torch.ones(n) * i).to(self.device)
+                    t_prev = (torch.ones(n) * j).to(self.device)
+
+                    x = denoising_step(x, t=t, t_next=t_prev, models=model,
+                                        logvars=self.logvar,
+                                        sampling_type='ddim',
+                                        b=self.betas,
+                                        eta=0,
+                                        learn_sigma=True)
+
+                    progress_bar.update(1)
+            time_e = time.time()
+            print(f'{time_e - time_s} seconds')
+            x_lat = x.clone()
+            tvu.save_image((x_lat + 1) * 0.5, os.path.join(self.args.image_folder,
+                                                            f'style_1_lat_ninv{self.args.n_inv_step}.png'))
+
+            with tqdm(total=len(seq_inv), desc=f"Generative process style") as progress_bar:
+                time_s = time.time()
+                for it, (i, j) in enumerate(zip(reversed((seq_inv)), reversed((seq_inv_next)))):
+                    t = (torch.ones(n) * i).to(self.device)
+                    t_next = (torch.ones(n) * j).to(self.device)
+
+                    x = denoising_step(x, t=t, t_next=t_next, models=model,
+                                        logvars=self.logvar,
+                                        sampling_type=self.args.sample_type,
+                                        b=self.betas,
+                                        learn_sigma=True)
+                    progress_bar.update(1)
+                time_e = time.time()
+                print(f'{time_e - time_s} seconds')
+
+            style_lat_pairs += [x0, x.detach().clone(), x_lat.detach().clone()]
+        tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
+                                                    f'style_1_rec_ninv{self.args.n_inv_step}.png'))
+        pairs_path = os.path.join('precomputed/',
+                                          f'{self.config.data.category}_style_t{self.args.t_0}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+        torch.save(style_lat_pairs, pairs_path)

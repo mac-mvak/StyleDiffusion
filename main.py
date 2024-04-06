@@ -33,7 +33,7 @@ def parse_args_and_config():
 
     # Text
     parser.add_argument('--edit_attr', type=str, default='neanderthal', help='Attribute to edit defiend in ./utils/text_dic.py')
-    parser.add_argument('--src_txts', type=str, action='append', help='Source text e.g. Face')
+    parser.add_argument('--style_image', type=str, default='a' , help='Source text e.g. Face')
     parser.add_argument('--trg_txts', type=str, action='append', help='Target text e.g. Angry Face')
     parser.add_argument('--target_class_num', type=str, default=None)
 
