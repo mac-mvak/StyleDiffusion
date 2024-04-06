@@ -209,27 +209,6 @@ def main():
     w.remove_style()
 
 
-    runner = DiffusionCLIP(args, config)
-    try:
-        if args.clip_finetune_eff:
-            runner.clip_finetune_eff()
-        elif args.clip_latent_optim:
-            runner.clip_latent_optim()
-        elif args.edit_images_from_dataset:
-            runner.edit_images_from_dataset()
-        elif args.edit_one_image:
-            runner.edit_one_image()
-        elif args.edit_one_image_eff:
-            runner.edit_one_image_eff()
-        elif args.unseen2unseen:
-            runner.unseen2unseen()
-        else:
-            print('Choose one mode!')
-            raise ValueError
-    except Exception:
-        logging.error(traceback.format_exc())
-
-
     return 0
 
 
