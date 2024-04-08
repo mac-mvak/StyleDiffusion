@@ -16,15 +16,9 @@ def parse_args_and_config():
     parser = argparse.ArgumentParser(description=globals()['__doc__'])
 
     # Mode
-    parser.add_argument('--clip_latent_optim', action='store_true')
-    parser.add_argument('--edit_images_from_dataset', action='store_true')
-    parser.add_argument('--edit_one_image', action='store_true')
-    parser.add_argument('--unseen2unseen', action='store_true')
-    parser.add_argument('--clip_finetune_eff', action='store_true', default=True)
-    parser.add_argument('--edit_one_image_eff', action='store_true')
 
     # Default
-    parser.add_argument('--config', type=str, default='celeba.yml', help='Path to the config file')
+    parser.add_argument('--config', type=str, default='imagenet.yml', help='Path to the config file')
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
     parser.add_argument('--exp', type=str, default='./runs/test', help='Path for saving running related data.')
     parser.add_argument('--comment', type=str, default='', help='A string for experiment comment')
@@ -32,15 +26,13 @@ def parse_args_and_config():
     parser.add_argument('--ni', type=int, default=1,  help="No interaction. Suitable for Slurm Job launcher")
     parser.add_argument('--align_face', type=int, default=1, help='align face or not')
 
-    # Text
-    parser.add_argument('--edit_attr', type=str, default='neanderthal', help='Attribute to edit defiend in ./utils/text_dic.py')
-    parser.add_argument('--style_image', type=str, default='gogh.jpg' , help='Source text e.g. Face')
-    parser.add_argument('--trg_txts', type=str, action='append', help='Target text e.g. Angry Face')
-    parser.add_argument('--target_class_num', type=str, default=None)
+    # Image
+    parser.add_argument('--style_image', type=str, default='munch.jpg' , help='Source text e.g. Face')
+    parser.add_argument('--image_size', type=int, default=512, help='Image Size')
 
     # Sampling
-    parser.add_argument('--t_0_remove', type=int, default=601, help='Return step in [0, 1000)')
-    parser.add_argument('--t_0_transfer', type=int, default=301, help='Return step in [0, 1000)')
+    parser.add_argument('--t_0_remove', type=int, default=603, help='Return step in [0, 1000)')
+    parser.add_argument('--t_0_transfer', type=int, default=601, help='Return step in [0, 1000)')
     parser.add_argument('--k_r', type=int, default=50, help='Return step in [0, 1000)')
     parser.add_argument('--n_inv_step', type=int, default=40, help='# of steps during generative pross for inversion')
     parser.add_argument('--n_train_step', type=int, default=6, help='# of steps during generative pross for train')
@@ -54,10 +46,9 @@ def parse_args_and_config():
     parser.add_argument('--save_train_image', type=int, default=1, help='Wheter to save training results during CLIP fineuning')
     parser.add_argument('--bs_train', type=int, default=1, help='Training batch size during CLIP fineuning')
     parser.add_argument('--bs_test', type=int, default=1, help='Test batch size during CLIP fineuning')
-    parser.add_argument('--n_precomp_img', type=int, default=50, help='# of images to precompute latents')
-    parser.add_argument('--n_train_img', type=int, default=50, help='# of training images')
-    parser.add_argument('--n_test_img', type=int, default=10, help='# of test images')
-    parser.add_argument('--model_path', type=str, default='pretrained/256x256_diffusion_uncond.pt', help='Test model path')
+    parser.add_argument('--n_precomp_img', type=int, default=5, help='# of images to precompute latents')
+    parser.add_argument('--n_train_img', type=int, default=5, help='# of training images')
+    parser.add_argument('--n_test_img', type=int, default=5, help='# of test images')
     parser.add_argument('--img_path', type=str, default=None, help='Image path to test')
     parser.add_argument('--deterministic_inv', type=int, default=1, help='Whether to use deterministic inversion during inference')
     parser.add_argument('--hybrid_noise', type=int, default=0, help='Whether to change multiple attributes by mixing multiple models')
@@ -65,13 +56,13 @@ def parse_args_and_config():
 
 
     # Loss & Optimization
-    parser.add_argument('--clip_loss_w', type=int, default=3, help='Weights of CLIP loss')
-    parser.add_argument('--l1_loss_w', type=float, default=1, help='Weights of L1 loss')
-    parser.add_argument('--id_loss_w', type=float, default=0, help='Weights of ID loss')
+    parser.add_argument('--dir_loss', type=float, default=1., help='Weights of CLIP loss')
+    parser.add_argument('--l1_loss_w', type=float, default=10., help='Weights of L1 loss')
+    parser.add_argument('--style_loss_w', type=float, default=1., help='Weights of style loss')
     parser.add_argument('--clip_model_name', type=str, default='ViT-B/16', help='ViT-B/16, ViT-B/32, RN50x16 etc')
-    parser.add_argument('--lr_clip_finetune', type=float, default=8e-6, help='Initial learning rate for finetuning')
+    parser.add_argument('--lr_clip_finetune', type=float, default=4e-6, help='Initial learning rate for finetuning')
     parser.add_argument('--lr_clip_lat_opt', type=float, default=2e-2, help='Initial learning rate for latent optim')
-    parser.add_argument('--n_iter', type=int, default=5, help='# of iterations of a generative process with `n_train_img` images')
+    parser.add_argument('--n_iter', type=int, default=10, help='# of iterations of a generative process with `n_train_img` images')
     parser.add_argument('--scheduler', type=int, default=1, help='Whether to increase the learning rate')
     parser.add_argument('--sch_gamma', type=float, default=1.2, help='Scheduler gamma')
 
@@ -82,60 +73,8 @@ def parse_args_and_config():
         config = yaml.safe_load(f)
     new_config = dict2namespace(config)
 
-    if args.clip_finetune_eff :
-        if args.edit_attr is not None:
-            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.edit_attr}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
-        else:
-            args.exp = args.exp + f'_FT_{new_config.data.category}_{args.trg_txts}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_finetune}'
-    elif args.clip_latent_optim:
-        if args.edit_attr is not None:
-            args.exp = args.exp + f'_LO_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_{args.edit_attr}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_lat_opt}'
-        else:
-            args.exp = args.exp + f'_LO_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_{args.trg_txts}_t{args.t_0}_ninv{args.n_inv_step}_ngen{args.n_train_step}_id{args.id_loss_w}_l1{args.l1_loss_w}_lr{args.lr_clip_lat_opt}'
-    elif args.edit_images_from_dataset:
-        if args.model_path:
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth","")}'
-        elif args.hybrid_noise:
-            hb_str = '_'
-            for i, model_name in enumerate(HYBRID_MODEL_PATHS):
-                hb_str = hb_str + model_name.split('_')[1]
-                if i != len(HYBRID_MODEL_PATHS) - 1:
-                    hb_str = hb_str + '_'
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
-        else:
-            args.exp = args.exp + f'_ED_{new_config.data.category}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
-
-    elif args.edit_one_image:
-        if args.model_path:
-            args.exp = args.exp + f'_E1_t{args.t_0_remove}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_inv_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
-        elif args.hybrid_noise:
-            hb_str = '_'
-            for i, model_name in enumerate(HYBRID_MODEL_PATHS):
-                hb_str = hb_str + model_name.split('_')[1]
-                if i != len(HYBRID_MODEL_PATHS) - 1:
-                    hb_str = hb_str + '_'
-            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}' + hb_str
-        else:
-            args.exp = args.exp + f'_E1_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_orig'
-
-    elif args.unseen2unseen:
-        if args.model_path:
-            args.exp = args.exp + f'_U2U_t{args.t_0_remove}_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_{os.path.split(args.model_path)[-1].replace(".pth", "")}'
-        elif args.hybrid_noise:
-            hb_str = '_'
-            for i, model_name in enumerate(HYBRID_MODEL_PATHS):
-                hb_str = hb_str + model_name.split('_')[1]
-                if i != len(HYBRID_MODEL_PATHS) - 1:
-                    hb_str = hb_str + '_'
-            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}' + hb_str
-        else:
-            args.exp = args.exp + f'_U2U_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}_ngen{args.n_train_step}_orig'
-
-    elif args.recon_exp:
-        args.exp = args.exp + f'_REC_{new_config.data.category}_{args.img_path.split("/")[-1].split(".")[0]}_t{args.t_0_remove}_ninv{args.n_train_step}'
-    elif args.find_best_image:
-        args.exp = args.exp + f'_FOpt_{new_config.data.category}_{args.trg_txts[0]}_t{args.t_0_remove}_ninv{args.n_train_step}'
-
+    image_name = args.style_image.split('.')[0]
+    args.exp = args.exp + f'_FT_{new_config.data.category}_{image_name}_s{args.image_size}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_dir_{args.dir_loss}_l1_{args.l1_loss_w}_st_{args.style_loss_w}_lr_{args.lr_clip_finetune}'
 
     level = getattr(logging, args.verbose.upper(), None)
     if not isinstance(level, int):
@@ -211,8 +150,8 @@ def main():
     w = StyleRemoval(args, config)
     w.remove_style()
 
-    #w = StyleTransfer(args, config)
-    #w.transfer_style()
+    w = StyleTransfer(args, config)
+    w.transfer_style()
 
 
     return 0

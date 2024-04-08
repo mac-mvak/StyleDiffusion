@@ -43,44 +43,6 @@ def denoising_step(xt, t, t_next, *,
             logvar = logvar_learned
         else:
             logvar = extract(logvars, t, xt.shape)
-    else:
-        if not hybrid:
-            et = 0
-            logvar = 0
-            if ratio != 0.0:
-                et_i = ratio * models[1](xt, t)
-                if learn_sigma:
-                    et_i, logvar_learned = torch.split(et_i, et_i.shape[1] // 2, dim=1)
-                    logvar += logvar_learned
-                else:
-                    logvar += ratio * extract(logvars, t, xt.shape)
-                et += et_i
-
-            if ratio != 1.0:
-                et_i = (1 - ratio) * models[0](xt, t)
-                if learn_sigma:
-                    et_i, logvar_learned = torch.split(et_i, et_i.shape[1] // 2, dim=1)
-                    logvar += logvar_learned
-                else:
-                    logvar += (1 - ratio) * extract(logvars, t, xt.shape)
-                et += et_i
-
-        else:
-            for thr in list(hybrid_config.keys()):
-                if t.item() >= thr:
-                    et = 0
-                    logvar = 0
-                    for i, ratio in enumerate(hybrid_config[thr]):
-                        ratio /= sum(hybrid_config[thr])
-                        et_i = models[i+1](xt, t)
-                        if learn_sigma:
-                            et_i, logvar_learned = torch.split(et_i, et_i.shape[1] // 2, dim=1)
-                            logvar_i = logvar_learned
-                        else:
-                            logvar_i = extract(logvars, t, xt.shape)
-                        et += ratio * et_i
-                        logvar += ratio * logvar_i
-                    break
 
     # Compute the next x
     bt = extract(b, t, xt.shape)

@@ -56,11 +56,14 @@ class StyleRemoval(object):
         #print(f'   {self.src_txts}')
         #print(f'-> {self.trg_txts}')
         
-        model = i_DDPM(self.config.data.dataset)
-        init_ckpt = torch.load(self.args.model_path)
+        model = i_DDPM(self.config.data.dataset, self.args.image_size)
+        if self.args.image_size == 256:
+            model_path = 'pretrained/256x256_diffusion_uncond.pt'
+        elif self.args.image_size == 512:
+            model_path = 'pretrained/512x512_diffusion.pt'
+        init_ckpt = torch.load(model_path)
         u = model.load_state_dict(init_ckpt)
         model.to(self.device)
-        model = torch.nn.DataParallel(model)
 
         # ----------- Precompute Latents -----------#
         print("Prepare identity latent")
@@ -74,6 +77,13 @@ class StyleRemoval(object):
         if self.config.data.dataset == 'CelebA_HQ':
             train_ds_path = 'data/celeba_hq/raw_images/train/*/*.jpg'
             val_ds_path = 'data/celeba_hq/raw_images/val/*/*.jpg'
+            train_ds = GENERIC_dataset(train_ds_path)
+            val_ds = GENERIC_dataset(val_ds_path)
+            loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
+                                            num_workers=self.config.data.num_workers)
+        elif self.config.data.dataset == 'IMAGENET':
+            train_ds_path = 'data/imagenet/train/*/*.JPEG'
+            val_ds_path = 'data/imagenet/val/*/*.JPEG'
             train_ds = GENERIC_dataset(train_ds_path)
             val_ds = GENERIC_dataset(val_ds_path)
             loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
@@ -191,4 +201,4 @@ class StyleRemoval(object):
                                                     f'style_1_rec_ninv{self.args.n_inv_step}.png'))
         pairs_path = os.path.join('precomputed/',
                                           f'{self.config.data.category}_style_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
-        torch.save(style_lat_pairs, pairs_path)
+        torch.save([style_lat_pairs], pairs_path)

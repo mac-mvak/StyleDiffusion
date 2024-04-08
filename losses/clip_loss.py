@@ -75,18 +75,7 @@ class CLIPLoss(torch.nn.Module):
         similarity = image_features @ text_features.T
 
         return 1. - similarity
-    
-    def get_text_features(self, class_str: str, templates=imagenet_templates, norm: bool = True) -> torch.Tensor:
-        template_text = self.compose_text_with_templates(class_str, templates)
 
-        tokens = clip.tokenize(template_text).to(self.device)
-
-        text_features = self.encode_text(tokens).detach()
-
-        if norm:
-            text_features /= text_features.norm(dim=-1, keepdim=True)
-
-        return text_features
 
     def get_image_features(self, img: torch.Tensor, norm: bool = False) -> torch.Tensor:
         image_features = self.encode_images(img)
@@ -97,8 +86,8 @@ class CLIPLoss(torch.nn.Module):
         return image_features
 
     def compute_image_direction(self, source_image: torch.Tensor, target_image: torch.Tensor) -> torch.Tensor:
-        source_features = self.get_text_features(source_image)
-        target_features = self.get_text_features(target_image)
+        source_features = self.get_image_features(source_image)
+        target_features = self.get_image_features(target_image)
 
         image_direction = (target_features - source_features)
 
@@ -108,7 +97,7 @@ class CLIPLoss(torch.nn.Module):
     def forward(self, color_content: torch.Tensor, gray_content: torch.Tensor, gray_style: torch.Tensor, color_style: torch.Tensor):
         
         if self.style_d is None:
-            self.style_d = self.compute_image_direction(color_style, gray_style)
+            self.style_d = self.compute_image_direction(color_style, gray_style).detach()
 
 
         content_d = self.compute_image_direction(color_content, gray_content)

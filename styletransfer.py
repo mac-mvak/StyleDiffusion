@@ -52,20 +52,17 @@ class StyleTransfer(object):
         elif self.model_var_type == 'fixedsmall':
             self.logvar = np.log(np.maximum(posterior_variance, 1e-20))
 
-        if self.args.edit_attr is None:
-            self.src_txts = self.args.src_txts
-            self.trg_txts = self.args.trg_txts
-        else:
-            self.src_txts = SRC_TRG_TXT_DIC[self.args.edit_attr][0]
-            self.trg_txts = SRC_TRG_TXT_DIC[self.args.edit_attr][1]
-
 
     def transfer_style(self):
         #print(f'   {self.src_txts}')
         #print(f'-> {self.trg_txts}')
         
-        model = i_DDPM(self.config.data.dataset)
-        init_ckpt = torch.load(self.args.model_path)
+        model = i_DDPM(self.config.data.dataset, self.args.image_size)
+        if self.args.image_size == 256:
+            model_path = 'pretrained/256x256_diffusion_uncond.pt'
+        elif self.args.image_size == 512:
+            model_path = 'pretrained/512x512_diffusion.pt'
+        init_ckpt = torch.load(model_path)
         u = model.load_state_dict(init_ckpt)
         model.to(self.device)
         model = model
@@ -82,13 +79,13 @@ class StyleTransfer(object):
         lats_dict = defaultdict(list)
         for mode in ['train', 'test', 'style']:
             img_lat_pairs = []
-            lats = torch.load('precomputed/',
+            lats = torch.load('precomputed/' #
                                           f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
 
             for step, xs in enumerate(lats):
                 if mode == 'style':
                     img = xs[2]
-                    style_color = xs[0].clone().to(self.config.device)
+                    style_color = xs[0].clone().to(self.config.device).unsqueeze(0)
                     style_gray = xs[2].clone().to(self.config.device)
                 else:
                     img = xs[1]
@@ -130,8 +127,8 @@ class StyleTransfer(object):
         print("Loading losses")
         clip_loss_func = CLIPLoss(
             self.device,
-            lambda_direction=1,
-            lambda_l1=10,
+            lambda_direction=10.,
+            lambda_l1=10.,
             clip_model=self.args.clip_model_name)
 
         # ----------- Finetune Diffusion Models -----------#
@@ -150,121 +147,118 @@ class StyleTransfer(object):
         seq_test = [int(s) for s in list(seq_test)]
         seq_test_next = [-1] + list(seq_test[:-1])
 
-        for src_txt, trg_txt in zip(self.src_txts, self.trg_txts):
-            print(f"CHANGE {src_txt} TO {trg_txt}")
-            model.module.load_state_dict(init_ckpt)
-            optim_ft.load_state_dict(init_opt_ckpt)
-            scheduler_ft.load_state_dict(init_sch_ckpt)
-            clip_loss_func.target_direction = None
 
-            # ----------- Train -----------#
-            for it_out in range(self.args.n_iter):
-                exp_id = os.path.split(self.args.exp)[-1]
-                save_name = f'checkpoint/{exp_id}_{trg_txt.replace(" ", "_")}-{it_out}.pth'
-                if self.args.do_train:
-                    
-                    for k in tqdm(self.args.k_r):
-                        with tqdm(total=len(seq_train), desc=f"Style reconstruction iteration_{k}") as progress_bar:
-                            x = lats_dict['style'][1].clone()
-                            for t_it, (i, j) in enumerate(zip(reversed(seq_train), reversed(seq_train_next))):
-                                t = (torch.ones(n) * i).to(self.device)
-                                t_next = (torch.ones(n) * j).to(self.device)
+        model.load_state_dict(init_ckpt)
+        optim_ft.load_state_dict(init_opt_ckpt)
+        scheduler_ft.load_state_dict(init_sch_ckpt)
 
-                                x, x0_t = denoising_step(x, t=t, t_next=t_next, models=model,
-                                                            logvars=self.logvar,
-                                                            sampling_type=self.args.sample_type,
-                                                            b=self.betas,
-                                                            eta=self.args.eta,
-                                                            learn_sigma=True,
-                                                            out_x0_t=True)
-
-                                progress_bar.update(1)
-                                x = x.detach().clone()
-                                loss_style = F.l1_loss(style_color, x0_t)
+        # ----------- Train -----------#
+        for it_out in range(self.args.n_iter):
+            exp_id = os.path.split(self.args.exp)[-1]
+            save_name = f'checkpoint/{exp_id}_-{it_out}.pth'
+            if self.args.do_train:
                 
-                                loss_style.backward()
+                for k in range(self.args.k_r):
+                    with tqdm(total=len(seq_train), desc=f"Style reconstruction iteration_{k}") as progress_bar:
+                        x = lats_dict['style'][0][1].clone()
+                        for t_it, (i, j) in enumerate(zip(reversed(seq_train), reversed(seq_train_next))):
+                            t = (torch.ones(n) * i).to(self.device)
+                            t_next = (torch.ones(n) * j).to(self.device)
 
-                                optim_ft.step()
-                                optim_ft.zero_grad()
+                            x, x0_t = denoising_step(x, t=t, t_next=t_next, models=model,
+                                                        logvars=self.logvar,
+                                                        sampling_type=self.args.sample_type,
+                                                        b=self.betas,
+                                                        eta=self.args.eta,
+                                                        learn_sigma=True,
+                                                        out_x0_t=True)
+
+                            progress_bar.update(1)
+                            x = x.detach().clone()
+                            loss_style = F.mse_loss(style_color, x0_t)
+            
+                            loss_style.backward()
+
+                            optim_ft.step()
+                            optim_ft.zero_grad()
 
 
-                    for step, xs in enumerate(lats_dict['train']):
-                        model.train()
-                        time_in_start = time.time()
+                for step, xs in enumerate(lats_dict['train']):
+                    model.train()
+                    time_in_start = time.time()
 
-                        optim_ft.zero_grad()
+                    optim_ft.zero_grad()
+                    x0, x_lat = xs
+                    x = x_lat.clone().to(self.device)
+                    x0 = x0.to(self.device)
+                    with tqdm(total=len(seq_train), desc=f"CLIP iteration") as progress_bar:
+                        for t_it, (i, j) in enumerate(zip(reversed(seq_train), reversed(seq_train_next))):
+                            t = (torch.ones(n) * i).to(self.device)
+                            t_next = (torch.ones(n) * j).to(self.device)
+
+                            x, x0_t = denoising_step(x, t=t, t_next=t_next, models=model,
+                                                        logvars=self.logvar,
+                                                        sampling_type=self.args.sample_type,
+                                                        b=self.betas,
+                                                        eta=self.args.eta,
+                                                        learn_sigma=True,
+                                                        out_x0_t=True)
+
+                            progress_bar.update(1)
+                            x = x.detach().clone()
+
+                            loss_clip = clip_loss_func(x0_t, x0, style_gray, style_color)
+                            
+            
+                            loss_clip.backward()
+
+                            optim_ft.step()
+                            optim_ft.zero_grad()
+
+                            #print(f"CLIP {step}-{it_out}: loss_clip: {loss_clip:.3f}")
+                            # break
+
+                    if self.args.save_train_image:
+                        tvu.save_image((x0_t + 1) * 0.5, os.path.join(self.args.image_folder,
+                                                                        f'train_{step}_2_clip_{it_out}_ngen{self.args.n_train_step}.png'))
+                    time_in_end = time.time()
+                    print(f"Training for 1 image takes {time_in_end - time_in_start:.4f}s")
+                    if step == self.args.n_train_img - 1:
+                        break
+
+                
+                torch.save(model.state_dict(), save_name)
+                print(f'Model {save_name} is saved.')
+                scheduler_ft.step()
+
+            # ----------- Eval -----------#
+            if self.args.do_test:
+                if not self.args.do_train:
+                    print(save_name)
+                    model.module.load_state_dict(torch.load(save_name))
+
+                model.eval()
+                for step, xs in enumerate(lats_dict['test']):
+                    with torch.no_grad():
                         x0, x_lat = xs
                         x = x_lat.clone().to(self.device)
                         x0 = x0.to(self.device)
-                        with tqdm(total=len(seq_train), desc=f"CLIP iteration") as progress_bar:
-                            for t_it, (i, j) in enumerate(zip(reversed(seq_train), reversed(seq_train_next))):
+                        with tqdm(total=len(seq_test), desc=f"Eval iteration") as progress_bar:
+                            for i, j in zip(reversed(seq_test), reversed(seq_test_next)):
                                 t = (torch.ones(n) * i).to(self.device)
                                 t_next = (torch.ones(n) * j).to(self.device)
 
-                                x, x0_t = denoising_step(x, t=t, t_next=t_next, models=model,
-                                                            logvars=self.logvar,
-                                                            sampling_type=self.args.sample_type,
-                                                            b=self.betas,
-                                                            eta=self.args.eta,
-                                                            learn_sigma=True,
-                                                            out_x0_t=True)
+                                x = denoising_step(x, t=t, t_next=t_next, models=model,
+                                                    logvars=self.logvar,
+                                                    sampling_type=self.args.sample_type,
+                                                    b=self.betas,
+                                                    eta=self.args.eta,
+                                                    learn_sigma=True)
 
                                 progress_bar.update(1)
-                                x = x.detach().clone()
 
-                                loss_clip = clip_loss_func(x0_t, x0, style_gray, style_color)
-                                
-                
-                                loss_clip.backward()
-
-                                optim_ft.step()
-                                optim_ft.zero_grad()
-
-                                #print(f"CLIP {step}-{it_out}: loss_clip: {loss_clip:.3f}")
-                                # break
-
-                        if self.args.save_train_image:
-                            tvu.save_image((x0_t + 1) * 0.5, os.path.join(self.args.image_folder,
-                                                                            f'train_{step}_2_clip_{trg_txt.replace(" ", "_")}_{it_out}_ngen{self.args.n_train_step}.png'))
-                        time_in_end = time.time()
-                        print(f"Training for 1 image takes {time_in_end - time_in_start:.4f}s")
-                        if step == self.args.n_train_img - 1:
+                        print(f"Eval {step}-{it_out}")
+                        tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
+                                                                    f'test_{step}_2_clip_{it_out}_ngen{self.args.n_test_step}.png'))
+                        if step == self.args.n_test_img - 1:
                             break
-
-                    
-                    torch.save(model.state_dict(), save_name)
-                    print(f'Model {save_name} is saved.')
-                    scheduler_ft.step()
-
-                # ----------- Eval -----------#
-                if self.args.do_test:
-                    if not self.args.do_train:
-                        print(save_name)
-                        model.module.load_state_dict(torch.load(save_name))
-
-                    model.eval()
-                    img_lat_pairs = img_lat_pairs_dic[mode]
-                    for step, xs in enumerate(lats_dict['test']):
-                        with torch.no_grad():
-                            x0, x_lat = xs
-                            x = x_lat.clone().to(self.device)
-                            x0 = x0.to(self.device)
-                            with tqdm(total=len(seq_test), desc=f"Eval iteration") as progress_bar:
-                                for i, j in zip(reversed(seq_test), reversed(seq_test_next)):
-                                    t = (torch.ones(n) * i).to(self.device)
-                                    t_next = (torch.ones(n) * j).to(self.device)
-
-                                    x = denoising_step(x, t=t, t_next=t_next, models=model,
-                                                       logvars=self.logvar,
-                                                       sampling_type=self.args.sample_type,
-                                                       b=self.betas,
-                                                       eta=self.args.eta,
-                                                       learn_sigma=True)
-
-                                    progress_bar.update(1)
-
-                            print(f"Eval {step}-{it_out}")
-                            tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
-                                                                       f'{mode}_{step}_2_clip_{trg_txt.replace(" ", "_")}_{it_out}_ngen{self.args.n_test_step}.png'))
-                            if step == self.args.n_test_img - 1:
-                                break

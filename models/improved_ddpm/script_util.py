@@ -22,7 +22,7 @@ AFHQ_DICT = dict(
 )
 
 
-IMAGENET_DICT = dict(
+IMAGENET_DICT256 = dict(
     attention_resolutions="32,16,8",
     class_cond=False,
     image_size=256,
@@ -40,6 +40,26 @@ IMAGENET_DICT = dict(
     use_checkpoint=False,
     use_new_attention_order=False,
 )
+
+IMAGENET_DICT512 = dict(
+    attention_resolutions="32,16,8",
+    class_cond=True,
+    image_size=512,
+    learn_sigma=True,
+    num_channels=256,
+    num_head_channels=64,
+    num_res_blocks=2,
+    resblock_updown=True,
+    use_fp16=False,
+    use_scale_shift_norm=True,
+    dropout=0.0,
+    num_heads=4,
+    num_heads_upsample=-1,
+    channel_mult="",
+    use_checkpoint=False,
+    use_new_attention_order=False,
+)
+
 
 
 def create_model(
@@ -99,11 +119,14 @@ def create_model(
     )
 
 
-def i_DDPM(dataset_name = 'AFHQ'):
+def i_DDPM(dataset_name = 'AFHQ', image_size=256):
     if dataset_name in  ['AFHQ', 'FFHQ']:
         return create_model(**AFHQ_DICT)
     elif dataset_name in ['IMAGENET', 'CelebA_HQ']:
-        return create_model(**IMAGENET_DICT)
+        if image_size == 256:
+            return create_model(**IMAGENET_DICT256)
+        elif image_size == 512:
+            return create_model(**IMAGENET_DICT512)
     else:
         print('Not implemented.')
         exit()

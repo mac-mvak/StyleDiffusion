@@ -4,3 +4,4 @@ pretrained/
 __pycache__
 precomputed
 runs
+checkpoint
