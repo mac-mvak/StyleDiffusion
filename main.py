@@ -27,7 +27,7 @@ def parse_args_and_config():
     parser.add_argument('--align_face', type=int, default=1, help='align face or not')
 
     # Image
-    parser.add_argument('--style_image', type=str, default='munch.jpg' , help='Source text e.g. Face')
+    parser.add_argument('--style_image', type=str, default='munch.jpg' , help='Style image')
     parser.add_argument('--image_size', type=int, default=512, help='Image Size')
 
     # Sampling
@@ -46,23 +46,22 @@ def parse_args_and_config():
     parser.add_argument('--save_train_image', type=int, default=1, help='Wheter to save training results during CLIP fineuning')
     parser.add_argument('--bs_train', type=int, default=1, help='Training batch size during CLIP fineuning')
     parser.add_argument('--bs_test', type=int, default=1, help='Test batch size during CLIP fineuning')
-    parser.add_argument('--n_precomp_img', type=int, default=5, help='# of images to precompute latents')
-    parser.add_argument('--n_train_img', type=int, default=5, help='# of training images')
+    parser.add_argument('--n_precomp_img', type=int, default=50, help='# of images to precompute latents')
+    parser.add_argument('--n_train_img', type=int, default=50, help='# of training images')
     parser.add_argument('--n_test_img', type=int, default=5, help='# of test images')
-    parser.add_argument('--img_path', type=str, default=None, help='Image path to test')
     parser.add_argument('--deterministic_inv', type=int, default=1, help='Whether to use deterministic inversion during inference')
     parser.add_argument('--hybrid_noise', type=int, default=0, help='Whether to change multiple attributes by mixing multiple models')
     parser.add_argument('--model_ratio', type=float, default=1, help='Degree of change, noise ratio from original and finetuned model.')
 
 
     # Loss & Optimization
-    parser.add_argument('--dir_loss', type=float, default=1., help='Weights of CLIP loss')
+    parser.add_argument('--dir_loss', type=float, default=1., help='Weights of direction loss')
     parser.add_argument('--l1_loss_w', type=float, default=10., help='Weights of L1 loss')
     parser.add_argument('--style_loss_w', type=float, default=1., help='Weights of style loss')
     parser.add_argument('--clip_model_name', type=str, default='ViT-B/16', help='ViT-B/16, ViT-B/32, RN50x16 etc')
     parser.add_argument('--lr_clip_finetune', type=float, default=4e-6, help='Initial learning rate for finetuning')
     parser.add_argument('--lr_clip_lat_opt', type=float, default=2e-2, help='Initial learning rate for latent optim')
-    parser.add_argument('--n_iter', type=int, default=10, help='# of iterations of a generative process with `n_train_img` images')
+    parser.add_argument('--n_iter', type=int, default=5, help='# of iterations of a generative process with `n_train_img` images')
     parser.add_argument('--scheduler', type=int, default=1, help='Whether to increase the learning rate')
     parser.add_argument('--sch_gamma', type=float, default=1.2, help='Scheduler gamma')
 
@@ -146,9 +145,16 @@ def main():
     logging.info("Config =")
     print("<" * 80)
 
+    exists = True
 
-    w = StyleRemoval(args, config)
-    w.remove_style()
+    for mode in ['train', 'test', 'style']:
+        pairs_path = os.path.join('precomputed/',
+                                          f'{config.data.category}_{mode}_t{args.t_0_remove}_size{args.image_size}_nim{args.n_precomp_img}_ninv{args.n_inv_step}_pairs.pth')
+        exists = exists and os.path.exists(pairs_path)
+    
+    if not exists:
+        w = StyleRemoval(args, config)
+        w.remove_style()
 
     w = StyleTransfer(args, config)
     w.transfer_style()

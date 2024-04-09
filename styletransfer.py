@@ -127,8 +127,8 @@ class StyleTransfer(object):
         print("Loading losses")
         clip_loss_func = CLIPLoss(
             self.device,
-            lambda_direction=10.,
-            lambda_l1=10.,
+            lambda_direction=self.args.dir_loss,
+            lambda_l1=self.args.l1_loss_w,
             clip_model=self.args.clip_model_name)
 
         # ----------- Finetune Diffusion Models -----------#
@@ -175,7 +175,7 @@ class StyleTransfer(object):
 
                             progress_bar.update(1)
                             x = x.detach().clone()
-                            loss_style = F.mse_loss(style_color, x0_t)
+                            loss_style = self.args.style_loss_w * F.mse_loss(style_color, x0_t)
             
                             loss_style.backward()
 

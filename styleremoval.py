@@ -77,17 +77,15 @@ class StyleRemoval(object):
         if self.config.data.dataset == 'CelebA_HQ':
             train_ds_path = 'data/celeba_hq/raw_images/train/*/*.jpg'
             val_ds_path = 'data/celeba_hq/raw_images/val/*/*.jpg'
-            train_ds = GENERIC_dataset(train_ds_path)
-            val_ds = GENERIC_dataset(val_ds_path)
-            loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
-                                            num_workers=self.config.data.num_workers)
+            
         elif self.config.data.dataset == 'IMAGENET':
             train_ds_path = 'data/imagenet/train/*/*.JPEG'
             val_ds_path = 'data/imagenet/val/*/*.JPEG'
-            train_ds = GENERIC_dataset(train_ds_path)
-            val_ds = GENERIC_dataset(val_ds_path)
-            loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
-                                            num_workers=self.config.data.num_workers)
+
+        train_ds = GENERIC_dataset(train_ds_path, img_size=self.args.image_size)
+        val_ds = GENERIC_dataset(val_ds_path, img_size=self.args.image_size)
+        loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
+                                        num_workers=self.config.data.num_workers)
 
         for mode in ['train', 'test']:
             img_lat_pairs = []
@@ -143,13 +141,13 @@ class StyleRemoval(object):
 
             img_lat_pairs_dic[mode] = img_lat_pairs
             pairs_path = os.path.join('precomputed/',
-                                          f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+                                          f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
             torch.save(img_lat_pairs, pairs_path)
         
         style_lat_pairs = []
         style_image_path = self.args.style_image
-        style_color_ds = GENERIC_dataset(style_image_path, color=True)
-        style_gray_ds = GENERIC_dataset(style_image_path)
+        style_color_ds = GENERIC_dataset(style_image_path, color=True, img_size=self.args.image_size)
+        style_gray_ds = GENERIC_dataset(style_image_path, img_size=self.args.image_size)
         color_img = torch.from_numpy(style_color_ds[0])
         tvu.save_image((color_img + 1) * 0.5, os.path.join(self.args.image_folder,
                                                            f'style_color_rec_ninv{self.args.n_inv_step}.png'))
@@ -200,5 +198,5 @@ class StyleRemoval(object):
         tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
                                                     f'style_1_rec_ninv{self.args.n_inv_step}.png'))
         pairs_path = os.path.join('precomputed/',
-                                          f'{self.config.data.category}_style_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+                                          f'{self.config.data.category}_style_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
         torch.save([style_lat_pairs], pairs_path)
