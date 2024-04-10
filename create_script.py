@@ -1,7 +1,7 @@
 f = open('runner.sh', 'w')
-print('conda activate /home/ubuntu/StyleDiffusion/.conda', file=f)
+print('source activate /home/ubuntu/StyleDiffusion/.conda', file=f)
 loss_w = [0.1, 1, 5, 10]
-images = ['munch.jpg'] #, 'munch.jpg', 'picasso.jpg']
+images = ['munch.jpg', 'gogh.jpg'] #, 'picasso.jpg']
 
 for image in images:
     for st_loss in loss_w:

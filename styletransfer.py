@@ -80,7 +80,7 @@ class StyleTransfer(object):
         for mode in ['train', 'test', 'style']:
             img_lat_pairs = []
             lats = torch.load('precomputed/' #
-                                          f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+                                           f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
 
             for step, xs in enumerate(lats):
                 if mode == 'style':
@@ -113,6 +113,10 @@ class StyleTransfer(object):
                     x_lat = x.clone()
                     lats_dict[mode].append((x0, x_lat))
                 if step == self.args.n_precomp_img - 1:
+                    break
+                if mode == 'train' and step == self.args.n_train_img - 1:
+                    break
+                if mode == 'test' and step == self.args.n_test_img - 1:
                     break
 
         # ----------- Optimizer and Scheduler -----------#

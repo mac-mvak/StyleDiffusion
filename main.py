@@ -61,7 +61,7 @@ def parse_args_and_config():
     parser.add_argument('--clip_model_name', type=str, default='ViT-B/16', help='ViT-B/16, ViT-B/32, RN50x16 etc')
     parser.add_argument('--lr_clip_finetune', type=float, default=4e-6, help='Initial learning rate for finetuning')
     parser.add_argument('--lr_clip_lat_opt', type=float, default=2e-2, help='Initial learning rate for latent optim')
-    parser.add_argument('--n_iter', type=int, default=5, help='# of iterations of a generative process with `n_train_img` images')
+    parser.add_argument('--n_iter', type=int, default=4, help='# of iterations of a generative process with `n_train_img` images')
     parser.add_argument('--scheduler', type=int, default=1, help='Whether to increase the learning rate')
     parser.add_argument('--sch_gamma', type=float, default=1.2, help='Scheduler gamma')
 
