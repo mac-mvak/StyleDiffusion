@@ -18,10 +18,10 @@ from losses.clip_loss import CLIPLoss
 from datasets.data_utils import get_dataset, get_dataloader
 from configs.paths_config import DATASET_PATHS, MODEL_PATHS, HYBRID_MODEL_PATHS, HYBRID_CONFIG
 from datasets.imagenet_dic import IMAGENET_DIC
-from datasets.GENERIC_dataset import GENERIC_dataset
+from datasets.GAUSSIAN_dataset import GAUSSIAN_dataset
 from utils.align_utils import run_alignment
 
-class StyleRemoval(object):
+class StyleRemovalGaussian(object):
     def __init__(self, args, config, device=None):
         self.args = args
         self.config = config
@@ -56,15 +56,6 @@ class StyleRemoval(object):
         #print(f'   {self.src_txts}')
         #print(f'-> {self.trg_txts}')
         
-        model = i_DDPM(self.config.data.dataset, self.args.image_size)
-        if self.args.image_size == 256:
-            model_path = 'pretrained/256x256_diffusion_uncond.pt'
-        elif self.args.image_size == 512:
-            model_path = 'pretrained/512x512_diffusion.pt'
-        init_ckpt = torch.load(model_path)
-        u = model.load_state_dict(init_ckpt)
-        model.to(self.device)
-
         # ----------- Precompute Latents -----------#
         print("Prepare identity latent")
         seq_inv = np.linspace(0, 1, self.args.n_inv_step) * self.args.t_0_remove
@@ -86,8 +77,8 @@ class StyleRemoval(object):
             train_ds_path = os.path.join(self.args.content_images, 'train/*/*.JPEG')
             val_ds_path = os.path.join(self.args.content_images, 'val/*/*.JPEG')
 
-        train_ds = GENERIC_dataset(train_ds_path, img_size=self.args.image_size)
-        val_ds = GENERIC_dataset(val_ds_path, img_size=self.args.image_size)
+        train_ds = GAUSSIAN_dataset(train_ds_path, img_size=self.args.image_size, gaussian_kernel=self.args.gaussian_kernel)
+        val_ds = GAUSSIAN_dataset(val_ds_path, img_size=self.args.image_size, gaussian_kernel=self.args.gaussian_kernel)
         loader_dic = get_dataloader(train_ds, val_ds, bs_train=self.args.bs_train,
                                         num_workers=self.config.data.num_workers)
 
@@ -99,48 +90,7 @@ class StyleRemoval(object):
                 x0 = img.to(self.config.device)
                 tvu.save_image((x0 + 1) * 0.5, os.path.join(self.args.image_folder, f'{mode}_{step}_0_orig.png'))
                 tvu.save_image((col_image + 1) * 0.5, os.path.join(self.args.image_folder, f'{mode}_{step}_0_orig_color.png'))
-
-                x = x0.clone()
-                model.eval()
-                time_s = time.time()
-                with torch.no_grad():
-                    with tqdm(total=len(seq_inv), desc=f"Inversion process {mode} {step}") as progress_bar:
-                        for it, (i, j) in enumerate(zip((seq_inv_next[1:]), (seq_inv[1:]))):
-                            t = (torch.ones(n) * i).to(self.device)
-                            t_prev = (torch.ones(n) * j).to(self.device)
-
-                            x = denoising_step(x, t=t, t_next=t_prev, models=model,
-                                               logvars=self.logvar,
-                                               sampling_type='ddim',
-                                               b=self.betas,
-                                               eta=0,
-                                               learn_sigma=True)
-
-                            progress_bar.update(1)
-                    time_e = time.time()
-                    print(f'{time_e - time_s} seconds')
-                    x_lat = x.clone()
-                    tvu.save_image((x_lat + 1) * 0.5, os.path.join(self.args.image_folder,
-                                                                   f'{mode}_{step}_1_lat_ninv{self.args.n_inv_step}.png'))
-
-                    with tqdm(total=len(seq_inv), desc=f"Generative process {mode} {step}") as progress_bar:
-                        time_s = time.time()
-                        for it, (i, j) in enumerate(zip(reversed((seq_inv)), reversed((seq_inv_next)))):
-                            t = (torch.ones(n) * i).to(self.device)
-                            t_next = (torch.ones(n) * j).to(self.device)
-
-                            x = denoising_step(x, t=t, t_next=t_next, models=model,
-                                               logvars=self.logvar,
-                                               sampling_type=self.args.sample_type,
-                                               b=self.betas,
-                                               learn_sigma=True)
-                            progress_bar.update(1)
-                        time_e = time.time()
-                        print(f'{time_e - time_s} seconds')
-
-                    img_lat_pairs.append([x0, x.detach().clone(), x_lat.detach().clone()])
-                tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
-                                                           f'{mode}_{step}_1_rec_ninv{self.args.n_inv_step}.png'))
+                img_lat_pairs.append([x0.clone(), x0.clone()])
                 if step == self.args.n_precomp_img - 1:
                     break
 

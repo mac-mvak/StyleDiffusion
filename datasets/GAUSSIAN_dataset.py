@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageFilter
 from glob import glob
 import os
 from torch.utils.data import Dataset
@@ -9,14 +9,15 @@ import random
 ###################################################################
 
 
-class GENERIC_dataset(Dataset):
-    def __init__(self, data_dir, class_num=None, img_size=256, color=False, crop=False, random_crop=True, random_flip=False):
+class GAUSSIAN_dataset(Dataset):
+    def __init__(self, data_dir, class_num=None, img_size=256, color=False, gaussian_kernel=1.5, crop=False, random_crop=True, random_flip=False):
         super().__init__()
         self.data_dir = data_dir
         self.data_dir = os.path.join(data_dir)
         self.image_paths = sorted(glob(self.data_dir))
         self.img_size = img_size
         self.random_crop = random_crop
+        self.gaussian_kernel = gaussian_kernel
         self.random_flip = random_flip
         self.class_num = class_num
         self.crop = crop
@@ -32,11 +33,14 @@ class GENERIC_dataset(Dataset):
         else:
             pil_image = pil_image.convert("L")
 
+        
+
         colored_image = colored_image.resize((self.img_size, self.img_size), Image.Resampling.LANCZOS)
         colored_arr =  np.array(colored_image)
 
         if not self.crop:
             arr = pil_image.resize((self.img_size, self.img_size), Image.Resampling.LANCZOS)
+            arr = arr.filter(ImageFilter.GaussianBlur(self.gaussian_kernel))
             arr = np.array(arr)
 
 

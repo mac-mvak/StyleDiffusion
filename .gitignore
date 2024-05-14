@@ -6,3 +6,5 @@ precomputed
 runs
 checkpoint
 *.zip
+runs_*
+imagenet_*

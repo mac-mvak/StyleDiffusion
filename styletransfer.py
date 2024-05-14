@@ -79,13 +79,17 @@ class StyleTransfer(object):
         lats_dict = defaultdict(list)
         for mode in ['train', 'test', 'style']:
             img_lat_pairs = []
-            lats = torch.load('precomputed/' #
-                                           f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_pairs.pth')
+            if mode != 'style':
+                lats = torch.load('precomputed/' #
+                                           f'{self.config.data.category}_{mode}_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_{self.args.removal_mode}_pairs.pth')
+            else:
+                image_name = self.args.style_image.split('.')[0]
+                lats = torch.load('precomputed/'f'{self.config.data.category}_style_{image_name}_t{self.args.t_0_remove}_size{self.args.image_size}_nim{self.args.n_precomp_img}_ninv{self.args.n_inv_step}_{self.args.removal_mode}_pairs.pth')
 
             for step, xs in enumerate(lats):
                 if mode == 'style':
                     img = xs[2]
-                    style_color = xs[0].clone().to(self.config.device).unsqueeze(0)
+                    style_color = xs[0].clone().to(self.config.device)
                     style_gray = xs[2].clone().to(self.config.device)
                 else:
                     img = xs[1]

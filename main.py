@@ -6,9 +6,14 @@ import sys
 import os
 import torch
 import numpy as np
+import json
 
-from diffusionclip import DiffusionCLIP
 from styleremoval import StyleRemoval
+from styleremoval_image import StyleRemovalImage
+from styleremoval_gaussian import StyleRemovalGaussian
+from styleremoval_image_gaussian import StyleRemovalImageGaussian
+
+
 from styletransfer import StyleTransfer
 from configs.paths_config import HYBRID_MODEL_PATHS
 
@@ -20,17 +25,20 @@ def parse_args_and_config():
     # Default
     parser.add_argument('--config', type=str, default='imagenet.yml', help='Path to the config file')
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
-    parser.add_argument('--exp', type=str, default='./runs/test', help='Path for saving running related data.')
+    parser.add_argument('--exp', type=str, default='./runs_gaussian/test', help='Path for saving running related data.')
     parser.add_argument('--comment', type=str, default='', help='A string for experiment comment')
     parser.add_argument('--verbose', type=str, default='info', help='Verbose level: info | debug | warning | critical')
     parser.add_argument('--ni', type=int, default=1,  help="No interaction. Suitable for Slurm Job launcher")
     parser.add_argument('--align_face', type=int, default=1, help='align face or not')
 
     # Image
-    parser.add_argument('--style_image', type=str, default='munch.jpg' , help='Style image')
+    parser.add_argument('--style_image', type=str, default='gogh.jpg' , help='Style image')
+    parser.add_argument('--removal_mode', type=str, default='gaussian' , help='Removal mode')
     parser.add_argument('--image_size', type=int, default=512, help='Image Size')
+    parser.add_argument('--content_images', type=str, default='imagenet_subset' , help='Content folder')
 
     # Sampling
+    parser.add_argument('--gaussian_kernel', type=float, default=1.5 , help='gaussian kernel for gaussian style removal')
     parser.add_argument('--t_0_remove', type=int, default=603, help='Return step in [0, 1000)')
     parser.add_argument('--t_0_transfer', type=int, default=601, help='Return step in [0, 1000)')
     parser.add_argument('--k_r', type=int, default=50, help='Return step in [0, 1000)')
@@ -61,7 +69,7 @@ def parse_args_and_config():
     parser.add_argument('--clip_model_name', type=str, default='ViT-B/16', help='ViT-B/16, ViT-B/32, RN50x16 etc')
     parser.add_argument('--lr_clip_finetune', type=float, default=4e-6, help='Initial learning rate for finetuning')
     parser.add_argument('--lr_clip_lat_opt', type=float, default=2e-2, help='Initial learning rate for latent optim')
-    parser.add_argument('--n_iter', type=int, default=4, help='# of iterations of a generative process with `n_train_img` images')
+    parser.add_argument('--n_iter', type=int, default=5, help='# of iterations of a generative process with `n_train_img` images')
     parser.add_argument('--scheduler', type=int, default=1, help='Whether to increase the learning rate')
     parser.add_argument('--sch_gamma', type=float, default=1.2, help='Scheduler gamma')
 
@@ -73,7 +81,7 @@ def parse_args_and_config():
     new_config = dict2namespace(config)
 
     image_name = args.style_image.split('.')[0]
-    args.exp = args.exp + f'_FT_{new_config.data.category}_{image_name}_s{args.image_size}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_dir_{args.dir_loss}_l1_{args.l1_loss_w}_st_{args.style_loss_w}_lr_{args.lr_clip_finetune}'
+    args.exp = args.exp + f'_FT_{new_config.data.category}_{image_name}_s{args.image_size}_t{args.t_0_remove}_ninv{args.n_inv_step}_ngen{args.n_train_step}_dir_{args.dir_loss}_l1_{args.l1_loss_w}_st_{args.style_loss_w}_lr_{args.lr_clip_finetune}_{args.removal_mode}'
 
     level = getattr(logging, args.verbose.upper(), None)
     if not isinstance(level, int):
@@ -145,19 +153,51 @@ def main():
     logging.info("Config =")
     print("<" * 80)
 
-    exists = True
+    assert args.removal_mode in {'diffusion', 'gaussian'}
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
 
-    for mode in ['train', 'test', 'style']:
+    start.record()
+
+    exists_tr = True
+
+    for mode in ['train', 'test']:
         pairs_path = os.path.join('precomputed/',
-                                          f'{config.data.category}_{mode}_t{args.t_0_remove}_size{args.image_size}_nim{args.n_precomp_img}_ninv{args.n_inv_step}_pairs.pth')
-        exists = exists and os.path.exists(pairs_path)
+                                          f'{config.data.category}_{mode}_t{args.t_0_remove}_size{args.image_size}_nim{args.n_precomp_img}_ninv{args.n_inv_step}_{args.removal_mode}_pairs.pth')
+        exists_tr = exists_tr and os.path.exists(pairs_path)
     
-    if not exists:
-        w = StyleRemoval(args, config)
-        w.remove_style()
+    image_name = args.style_image.split('.')[0]
+    style_pairs_path = os.path.join('precomputed/',
+                                          f'{config.data.category}_style_{image_name}_t{args.t_0_remove}_size{args.image_size}_nim{args.n_precomp_img}_ninv{args.n_inv_step}_{args.removal_mode}_pairs.pth')
+    exists_style =  os.path.exists(style_pairs_path)
+    
+    if not exists_tr:
+        if args.removal_mode == 'diffusion':
+            w = StyleRemoval(args, config)
+            w.remove_style()
+        elif args.removal_mode == 'gaussian':
+            w = StyleRemovalGaussian(args, config)
+            w.remove_style()
+    
+    if not exists_style:
+        if args.removal_mode == 'diffusion':
+            w = StyleRemovalImage(args, config)
+            w.remove_style()
+        elif args.removal_mode == 'gaussian':
+            w = StyleRemovalImageGaussian(args, config)
+            w.remove_style()
 
     w = StyleTransfer(args, config)
     w.transfer_style()
+
+    end.record()
+    torch.cuda.synchronize()
+
+    train_time = start.elapsed_time(end)
+    time_dict = {'time': train_time}
+    with open(os.path.join(args.image_folder, 'time.json'), 'w') as f:
+        json.dump(time_dict, f)
+
 
 
     return 0
