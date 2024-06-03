@@ -26,6 +26,13 @@ Example of run:
 python main.py --style_image munch.jpg --dir_loss 0.1 --l1_loss_w 0.1 --style_loss_w 5
 ```
 
+### Generation examples
+
+![Generation Samples](diffclip2.png)
+
+
+More samples on the [link](https://drive.google.com/drive/folders/1R-GKiYgABLiYFgDDaJHNrkohBJJ_yQS0?usp=sharing)
+ 
 
 
 
